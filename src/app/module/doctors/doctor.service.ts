@@ -6,6 +6,9 @@ import { IUpdateDoctorPayload } from "./doctor.interface";
 
 const getAllDoctors = async () => {
   const result = await prisma.doctor.findMany({
+    where: {
+      isDeleted: false,
+    },
     include: {
       user: true,
       specialties: {
@@ -23,6 +26,7 @@ const getDoctorById = async (id: string) => {
   const result = await prisma.doctor.findUnique({
     where: {
       id,
+      isDeleted: false,
     },
     include: {
       user: true,
@@ -31,6 +35,19 @@ const getDoctorById = async (id: string) => {
           specialty: true,
         },
       },
+      appointments: {
+        include: {
+          patient: true,
+          schedule: true,
+          prescription: true,
+        },
+      },
+      doctorSchedules: {
+        include: {
+          schedule: true,
+        },
+      },
+      reviews: true,
     },
   });
 
@@ -53,30 +70,57 @@ const updateDoctor = async (id: string, payload: IUpdateDoctorPayload) => {
     throw new AppError(status.NOT_FOUND, `Doctor with ${id} not found`);
   }
   //update data doc + user table
-  const result = await prisma.$transaction(async (tx) => {
-    const docData = await tx.doctor.update({
-      where: { id },
-      data: payload.doctor,
-    });
 
-    //update specialty
-    if (payload.specialties) {
-      await tx.doctorSpecialty.updateMany({
-        where: { doctorId: id },
-        data: payload.specialties,
+  const { doctor: doctorData, specialties } = payload;
+
+  //update in doc table
+  await prisma.$transaction(async (tx) => {
+    if (doctorData) {
+      await tx.doctor.update({
+        where: {
+          id,
+        },
+        data: {
+          ...doctorData,
+        },
       });
     }
 
-    //update user table
-    await tx.user.update({
-      where: { id: docData.userId },
-      data: payload.doctor,
-    });
+    if (specialties && specialties.length > 0) {
+      for (const specialty of specialties) {
+        const { specialtyId, shouldDelete } = specialty;
 
-    return docData;
+        if (shouldDelete) {
+          await tx.doctorSpecialty.delete({
+            where: {
+              doctorId_specialtyId: {
+                doctorId: id,
+                specialtyId,
+              },
+            },
+          });
+        } else {
+          await tx.doctorSpecialty.upsert({
+            where: {
+              doctorId_specialtyId: {
+                doctorId: id,
+                specialtyId,
+              },
+            },
+            create: {
+              doctorId: id,
+              specialtyId,
+            },
+            update: {},
+          });
+        }
+      }
+    }
   });
 
-  return result;
+  const doctor = await getDoctorById(id);
+
+  return doctor;
 };
 
 //soft delete
@@ -86,6 +130,9 @@ const deleteDoctor = async (id: string) => {
     where: {
       id,
     },
+    include: {
+      user: true,
+    },
   });
 
   if (!isDocExist) {
@@ -93,33 +140,39 @@ const deleteDoctor = async (id: string) => {
   }
 
   //soft delete user + doc -> isDelete true, status deleted
-
-  const result = await prisma.$transaction(async (tx) => {
-    const deletedeDoc = await tx.doctor.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.doctor.update({
       where: {
         id,
       },
       data: {
         isDeleted: true,
-        deletedAt: new Date(Date.now()),
+        deletedAt: new Date(),
       },
     });
 
     await tx.user.update({
       where: {
-        id: deletedeDoc.userId,
+        id: isDocExist.userId,
       },
       data: {
-        status: UserStatus.DELETED,
         isDeleted: true,
-        deletedAt: new Date(Date.now()),
+        deletedAt: new Date(),
+        status: UserStatus.DELETED,
       },
     });
 
-    return deletedeDoc;
+    //delete session and specialy
+    await tx.session.deleteMany({ where: { userId: isDocExist.userId } });
+
+    await tx.doctorSpecialty.deleteMany({
+      where: {
+        doctorId: id,
+      },
+    });
   });
 
-  return result;
+  return { message: "Doctor deleted successfully" };
 };
 
 export const DoctorService = {
