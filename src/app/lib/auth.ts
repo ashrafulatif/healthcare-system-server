@@ -96,6 +96,7 @@ export const auth = betterAuth({
               templateData: {
                 name: user.name,
                 otp,
+                expiresIn: 2,
               },
             });
           }
@@ -114,6 +115,7 @@ export const auth = betterAuth({
               templateData: {
                 name: user.name,
                 otp,
+                expiresIn: 2,
               },
             });
           }
