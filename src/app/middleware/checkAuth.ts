@@ -18,8 +18,6 @@ export const CheckAuth = (...authRoles: Role[]) => {
         "better-auth.session_token",
       );
 
-      console.log("called", sessionToken);
-
       if (!sessionToken) {
         throw new AppError(
           status.UNAUTHORIZED,
