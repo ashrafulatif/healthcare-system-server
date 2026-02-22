@@ -88,6 +88,21 @@ export const auth = betterAuth({
             },
           });
 
+          if (!user) {
+            console.error(
+              `User with email ${email} not found. Cannot send verification OTP.`,
+            );
+            return;
+          }
+          //super admin
+          if (user && user.role === Role.SUPER_ADMIN) {
+            if (user && user.role === Role.SUPER_ADMIN) {
+              console.log(
+                `User with email ${email} is a super admin. Skipping sending verification OTP.`,
+              );
+              return;
+            }
+          }
           if (user && !user.emailVerified) {
             sendEmail({
               to: email,
