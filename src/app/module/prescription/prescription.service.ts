@@ -29,7 +29,7 @@ const givePrescription = async (
     },
   });
   //get the appointment data
-  const appointmentData = await prisma.appointment.findFirstOrThrow({
+  const appointmentData = await prisma.appointment.findUniqueOrThrow({
     where: {
       id: payload.appointmentId,
     },
@@ -68,82 +68,92 @@ const givePrescription = async (
 
   const followUpDate = new Date(payload.followUpDate);
 
-  const result = await prisma.$transaction(async (tx) => {
-    //create prescription
-    const prescriptionData = await tx.prescription.create({
-      data: {
-        ...payload,
-        followUpDate,
-        doctorId: appointmentData.doctorId,
-        patientId: appointmentData.patientId,
-      },
-    });
-
-    //create pdf
-    const pdfBuffer = await generatePrescriptionPDF({
-      doctorName: doctorData.name,
-      doctorEmail: doctorData.email,
-      patientName: appointmentData.patient.name,
-      patientEmail: appointmentData.patient.email,
-      followUpDate,
-      instructions: payload.instructions,
-      prescriptionId: prescriptionData.id,
-      appointmentDate: appointmentData.schedule.startDateTime,
-      createdAt: new Date(),
-    });
-
-    //upload it couldinary
-    const fileName = `Prescription-${Date.now()}.pdf`;
-    const uploadFile = await uploadFileToCloudinary(pdfBuffer, fileName);
-    const pdfUrl = uploadFile.secure_url;
-
-    //update pdfUrl to db
-    const updatedPrescription = await tx.prescription.update({
-      where: {
-        id: prescriptionData.id,
-      },
-      data: {
-        pdfUrl,
-      },
-    });
-    //send email
-    try {
-      const patient = appointmentData.patient;
-      const doctor = appointmentData.doctor;
-
-      await sendEmail({
-        to: patient.email,
-        subject: `You have received a new prescription from Dr. ${doctor.name}`,
-        templateName: "prescription",
-        templateData: {
-          doctorName: doctor.name,
-          patientName: patient.name,
-          specialization: doctor.specialties
-            .map((s: any) => s.title)
-            .join(", "),
-          appointmentDate: new Date(
-            appointmentData.schedule.startDateTime,
-          ).toLocaleString(),
-          issuedDate: new Date().toLocaleDateString(),
-          prescriptionId: prescriptionData.id,
-          instructions: payload.instructions,
-          followUpDate: followUpDate.toLocaleDateString(),
-          pdfUrl: pdfUrl,
+  const result = await prisma.$transaction(
+    async (tx) => {
+      //create prescription
+      const prescriptionData = await tx.prescription.create({
+        data: {
+          ...payload,
+          followUpDate,
+          doctorId: appointmentData.doctorId,
+          patientId: appointmentData.patientId,
         },
-        attachments: [
-          {
-            filename: fileName,
-            content: pdfBuffer,
-            contentType: "application/pdf",
-          },
-        ],
       });
-    } catch (error) {
-      console.log("Failed To send email notification for prescription", error);
-    }
 
-    return updatedPrescription;
-  });
+      //create pdf
+      const pdfBuffer = await generatePrescriptionPDF({
+        doctorName: doctorData.name,
+        patientName: appointmentData.patient.name,
+        appointmentDate: appointmentData.schedule.startDateTime,
+        instructions: payload.instructions,
+        followUpDate,
+        doctorEmail: doctorData.email,
+        patientEmail: appointmentData.patient.email,
+        prescriptionId: prescriptionData.id,
+        createdAt: new Date(),
+      });
+
+      //upload it couldinary
+
+      const fileName = `Prescription-${Date.now()}.pdf`;
+      const uploadedFile = await uploadFileToCloudinary(pdfBuffer, fileName);
+      const pdfUrl = uploadedFile.secure_url;
+
+      //update pdfUrl to db
+      const updatedPrescription = await tx.prescription.update({
+        where: {
+          id: prescriptionData.id,
+        },
+        data: {
+          pdfUrl,
+        },
+      });
+      //send email
+      try {
+        const patient = appointmentData.patient;
+        const doctor = appointmentData.doctor;
+
+        await sendEmail({
+          to: patient.email,
+          subject: `You have received a new prescription from Dr. ${doctor.name}`,
+          templateName: "prescription",
+          templateData: {
+            doctorName: doctor.name,
+            patientName: patient.name,
+            specialization: doctor.specialties
+              .map((s: any) => s.title)
+              .join(", "),
+            appointmentDate: new Date(
+              appointmentData.schedule.startDateTime,
+            ).toLocaleString(),
+            issuedDate: new Date().toLocaleDateString(),
+            prescriptionId: prescriptionData.id,
+            instructions: payload.instructions,
+            followUpDate: followUpDate.toLocaleDateString(),
+            pdfUrl: pdfUrl,
+          },
+          attachments: [
+            {
+              filename: fileName,
+              content: pdfBuffer,
+              contentType: "application/pdf",
+            },
+          ],
+        });
+      } catch (error) {
+        console.log(
+          "Failed To send email notification for prescription",
+          error,
+        );
+      }
+
+      return updatedPrescription;
+    },
+    {
+      maxWait: 15000,
+      timeout: 20000,
+    },
+  );
 
   return result;
 };
@@ -251,7 +261,7 @@ const updatePrescription = async (
   const updatedInstructions =
     payload.instructions || prescriptionData.instructions;
   const updatedFollowUpDate = payload.followUpDate
-    ? payload.followUpDate
+    ? new Date(payload.followUpDate)
     : prescriptionData.followUpDate;
 
   //generate pdf
