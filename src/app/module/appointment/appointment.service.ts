@@ -101,7 +101,7 @@ const bookAppointment = async (
       ],
       metadata: {
         appointmentId: appoinmentData.id,
-        paymentId: patientData.id,
+        paymentId: paymentData.id,
       },
 
       success_url: `${envVars.FRONTEND_URL}/dashboard/payment/payment-success`,
@@ -125,14 +125,18 @@ const bookAppointment = async (
 const getMyAppointments = async (user: IRequestUser) => {
   //user can be both doctor and patiend - have to check both
 
+  console.log(user.userId);
   //doctor
   const doctorData = await prisma.doctor.findUnique({
-    where: { id: user.userId },
+    where: { email: user.email },
   });
+  console.log("doctor", doctorData);
 
   const patientData = await prisma.patient.findUnique({
-    where: { id: user.userId },
+    where: { email: user.email },
   });
+
+  console.log(patientData);
 
   if (patientData) {
     const appointments = await prisma.appointment.findMany({
@@ -382,8 +386,10 @@ const initiatePayment = async (appointmentId: string, user: IRequestUser) => {
           },
           unit_amount: appointmentData.doctor.appointmentFee * 100,
         },
+        quantity: 1,
       },
     ],
+
     metadata: {
       appointmentId: appointmentData.id,
       paymentId: appointmentData.payment.id,

@@ -30,7 +30,7 @@ const createSchedule = async (payload: ICreateSchedulePayload) => {
       addMinutes(
         addHours(
           `${format(currentDate, "yyyy-MM-dd")}`,
-          Number(startTime.split(":")[1]),
+          Number(startTime.split(":")[0]),
         ),
         Number(startTime.split(":")[1]),
       ),
@@ -40,7 +40,7 @@ const createSchedule = async (payload: ICreateSchedulePayload) => {
       addMinutes(
         addHours(
           `${format(currentDate, "yyyy-MM-dd")}`,
-          Number(endTime.split(":")[1]),
+          Number(endTime.split(":")[0]),
         ),
         Number(endTime.split(":")[1]),
       ),
@@ -56,12 +56,14 @@ const createSchedule = async (payload: ICreateSchedulePayload) => {
       };
 
       //check exist schedule
-      const existingSchedule = prisma.schedule.findFirst({
+      const existingSchedule = await prisma.schedule.findFirst({
         where: {
           startDateTime: scheduleData.startDateTime,
           endDateTime: scheduleData.endDateTime,
         },
       });
+
+      console.log('schedule data ', scheduleData)
 
       //create
       if (!existingSchedule) {
