@@ -13,20 +13,6 @@ import {
 } from "./doctor.constant";
 
 const getAllDoctors = async (query: IQueryParams) => {
-  // const result = await prisma.doctor.findMany({
-  //   where: {
-  //     isDeleted: false,
-  //   },
-  //   include: {
-  //     user: true,
-  //     specialties: {
-  //       include: {
-  //         specialty: true,
-  //       },
-  //     },
-  //   },
-  // });
-
   const queryBuilder = new QueryBuilder<
     Doctor,
     Prisma.DoctorWhereInput,
