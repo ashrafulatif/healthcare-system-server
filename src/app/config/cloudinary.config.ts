@@ -12,18 +12,18 @@ cloudinary.config({
 
 export const uploadFileToCloudinary = async (
   buffer: Buffer,
-  filenmae: string,
+  fileName: string,
 ): Promise<UploadApiResponse> => {
-  if (!buffer || !filenmae) {
+  if (!buffer || !fileName) {
     throw new AppError(
       status.BAD_REQUEST,
       "File buffer and file name are required for upload",
     );
   }
 
-  const extension = filenmae.split(".").pop()?.toLocaleLowerCase();
+  const extension = fileName.split(".").pop()?.toLocaleLowerCase();
 
-  const fileNameWithoutExtension = filenmae
+  const fileNameWithoutExtension = fileName
     .split(".")
     .slice(0, -1)
     .join(".")
@@ -33,13 +33,13 @@ export const uploadFileToCloudinary = async (
     .replace(/[^a-z0-9\-]/g, "");
 
   const uniqueName =
-    Math.random().toString(32).substring(2) +
+    Math.random().toString(36).substring(2) +
     "-" +
     Date.now() +
     "-" +
     fileNameWithoutExtension;
 
-  const folder = extension === "pdf" ? "pdf" : "images";
+  const folder = extension === "pdf" ? "pdfs" : "images";
 
   return new Promise((resolve, reject) => {
     cloudinary.uploader

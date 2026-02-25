@@ -249,7 +249,7 @@ const deleteReview = async (user: IRequestUser, reviewId: string) => {
         id: deletedReview.doctorId,
       },
       data: {
-        averageRating: averageRating._avg.rating as number,
+        averageRating: (averageRating._avg.rating as number) ?? 0,
       },
     });
 

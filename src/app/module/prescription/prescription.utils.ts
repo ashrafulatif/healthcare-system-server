@@ -18,7 +18,6 @@ export const generatePrescriptionPDF = async (
 ): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
     try {
-        
       const doc = new PDFDocument({
         size: "A4",
         margin: 50,
